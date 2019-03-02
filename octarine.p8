@@ -158,7 +158,7 @@ function draw_game()
  for entity in all(entities) do
    entity_draw(entity)
  end
-
+ foreach(particles,draw_part)
  for f in all(float) do
   oprint8(f.txt,f.x,f.y,f.c,0)
  end
@@ -199,7 +199,7 @@ function moveplayer(dir)
  local destx,desty=player.x+dx,player.y+dy
  local tle=mget(destx,desty)
 
- if iswalkable(destx,desty) then
+ if walkable(destx,desty, "entities") then
   -- sfx(63)
   mobwalk(player,dx,dy)
   p_t=0
@@ -221,8 +221,14 @@ function moveplayer(dir)
  end
 end
 
-function iswalkable(x, y)
- return not fget(mget(x,y), 7)
+function walkable(x, y, mode)
+ local mode = mode or ""
+ local floor = not fget(mget(x,y), 7)
+ if mode == "entities" then
+  -- debug[1] = "entity check: " .. entity_at(x,y)
+  if (floor) return entity_at(x,y) == nil
+ end
+ return floor
 end
 
 function mobwalk(mb,dx,dy)
@@ -289,7 +295,7 @@ function reload()
   else
    m = stored[item]
   end
-  debug[1] = "reload " .. magics[m]
+  -- debug[1] = "reload " .. magics[m]
   addfloat(magics[m], player.x * 8, player.y * 8, magiccols[m])
   charges[item] = 7
 end
@@ -302,6 +308,27 @@ function fireprojectile(entity, dir)
  mobflip(entity, dir[1])
  aiming = false
  charges[item] -= 1
+ hx, hy = throwtile(dir[1], dir[2])
+ addfloat('BOOM', hx * 8, hy * 8, 2)
+ explosion(hx * 8 + 4, hy * 8 + 4, 2)
+end
+
+function throwtile(dx, dy)
+ local tx,ty,i = player.x,player.y,0
+ repeat
+  tx += dx
+  ty += dy
+  i += 1
+ until not walkable(tx,ty, "entities") or i >= 8
+ return tx,ty
+end
+
+function entity_at(x,y)
+ for m in all(entities) do
+  if m.x==x and m.y==y then
+   return m
+  end
+ end
 end
 
 function getframe(ani)
@@ -468,8 +495,8 @@ __gfx__
 00888700008887000088877007777770777777700077770000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0e8800000e8800000e88000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0080e0000080e0000080e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-66660660555555500000000000333b305555550000000000c11c1cc0000000000000000000000000000000000000000000000000000000000000000000000000
-66660660000000000000000000033b305555555055550050c11c1cc0000000000000000000000000000000000000000000000000000000000000000000000000
+66660660555555500000000000333b300000000000000000c11c1cc0000000000000000000000000000000000000000000000000000000000000000000000000
+66660660000000000000000000033b305555550055550050c11c1cc0000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000003b3005555555055500550c11c1cc0000000000000000000000000000000000000000000000000000000000000000000000000
 770666600000000000000000000333005555555055505500c11c17c0000000000000000000000000000000000000000000000000000000000000000000000000
 770666600000000000000000000303005555555055500050c11c1cc0000000000000000000000000000000000000000000000000000000000000000000000000
