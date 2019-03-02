@@ -51,7 +51,7 @@ function _init()
  debug={}
  entities={}
  particles={}
- palettes={ex={2,5,6,8,9,10}}
+ palettes={earth={4,5,6}, nature={3,11}, water={1,12,13}, wind={6,7}, fire={8,9,10}, dark={2,5}, light={6,7}, octarine={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}}
 
  startgame()
 end
@@ -123,7 +123,9 @@ function startgame()
 
  enemies={}
  player=entity_create(6,4, 48, 8)
- add(enemies, entity_create(11,4, 51, 8))
+ add(enemies, entity_create(11,3, 51, 8))
+ add(enemies, entity_create(11,4, 51, 9))
+ add(enemies, entity_create(11,5, 51, 10))
  p_t=0
 
  -- wind={}
@@ -309,8 +311,20 @@ function fireprojectile(entity, dir)
  aiming = false
  charges[item] -= 1
  hx, hy = throwtile(dir[1], dir[2])
- addfloat('BOOM', hx * 8, hy * 8, 2)
- explosion(hx * 8 + 4, hy * 8 + 4, 2)
+ explosion(hx * 8 + 4, hy * 8 + 4, 2, palettes[ magics[stored[item]] ])
+
+ local hit = entity_at(hx, hy)
+ if (hit) dmg(hit, 1)
+end
+
+function dmg(entity, amount)
+ addfloat('-'..amount, entity.x * 8, entity.y * 8, 2)
+ entity.hp -= amount
+ entity.flash = 10
+
+ if entity.hp <= 0 then
+  del(entities, entity)
+ end
 end
 
 function throwtile(dx, dy)
@@ -411,9 +425,9 @@ function smoke(x,y)
  create_part(x,y,rnd(1)-0.5,rnd(0.5)-1,0,rnd(30)+10,rnd(4)+2,5)
 end
 
-function explosion(x,y,sz)
+function explosion(x, y, sz, palette)
  for i=1,sz*4 do
-  create_part(x,y,(rnd(16)-8)*sz/16,(rnd(16)-8)*sz/16,0,rnd(30)+10,rnd(sz)+3,palettes.ex[flr(rnd(#palettes.ex)+1)])
+  create_part(x,y,(rnd(16)-8)*sz/16,(rnd(16)-8)*sz/16,0,rnd(30)+10,rnd(sz)+3,palette[flr(rnd(#palette)+1)])
  end
  shake=sz/3
 end
