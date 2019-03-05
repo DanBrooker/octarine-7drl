@@ -552,10 +552,20 @@ end
 
 function water(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
- explosion(x, y, 2, palettes.water, {98, 102, 103})
- -- todo; add tile effect to hx, hy
- if (target == nil) return
- dmg(target, 1)
+ explosion(x, y, 8, palettes.water, {98, 102, 103})
+
+ if (target) dmg(target, 1)
+ for i=1,4 do
+  local dir = dirs[i]
+  local dx, dy = dir[1], dir[2]
+  local entity = entity_at(hx + dx, hy + dy)
+
+  if entity then
+   explosion(entity.x * 8, entity.y * 8, 8, palettes.water, {98, 102, 103})
+   mobwalk(entity, dx, dy)
+  end
+ end
+
  animate()
 end
 
