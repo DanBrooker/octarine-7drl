@@ -4,6 +4,8 @@ __lua__
 -- octarine
 -- draconisnz
 screen = 127
+size=32
+dev=true
 
 function entity_create(x, y, spr, col, name, args)
   local new_entity = {
@@ -49,6 +51,8 @@ function _init()
  dpal={0,1,1,2,1,13,6,4,4,9,3,13,1,13,14}
 
  dirs = {{-1,0}, {1,0}, {0,-1}, {0,1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}}
+ magictiles = { 114, 115, 116, 117, 118, 119, 120, 121}
+ walltiles = {64, 64, 64, 64, 64, 64, 80, 96}
  magics = { "earth", "nature", "water", "air", "fire", "dark", "light", "octarine" }
  magiccols = { 4, 3, 12, 3, 8, 5, 7, 13 }
  items = { "wand", "staff", "tome" }
@@ -102,7 +106,9 @@ function ui()
  spr(13, 4, 7)
 
  -- instructions
- if aiming then
+ if dev then
+   print("" .. player.x .. ", " .. player.y , 2, screen-5, 0)
+ elseif aiming then
    print("\x8b\x91\x94\x83 to zap", 2, screen-5, 0)
  elseif charges[item] == 0 then
    print("z to recharge", 2, screen-5, 0)
@@ -149,7 +155,60 @@ function mapgen(level)
  float={}
  entities={player}
  -- map gen should go here
- add(enemies, entity_create(12, 3, 51, 8, 'red slime', {}))
+
+ for i=1,size do
+  for j=1,size do
+   mset(i,j, 81)
+  end
+ end
+
+ rooms = {}
+ area = 30
+ for i=1,8 do
+  local width = rand(4, 10)
+  local height = rand(4, area/width)
+  room = {
+   x=rand(2, 28-width),
+   y=rand(2, 28-height),
+   w=width,
+   h=height,
+   i=i
+  }
+  add(rooms, room)
+  for i=room.x,room.x+room.w do
+   for j=room.y,room.y+room.h do
+    local tile = 113
+    if i == room.x or i == room.x+room.w then
+     tile = randa(walltiles)
+    elseif j == room.y or j == room.y+room.h then
+     tile = 68
+    elseif rand(1,10) > 8 then -- 20%
+     tile = randa(magictiles)
+    end
+    mset(i,j, tile)
+   end
+  end
+ end
+
+ -- todo: connect rooms
+ for i=1,#rooms do
+  -- body...
+   local room = rooms[i]
+   local next = rooms[i % #rooms+1]
+
+   local rx1, ry1 = room.x + room.w/2, room.y + room.h/2
+   local rx2, ry2 = next.x + next.w/2, next.y + next.h/2
+   local path = astar({rx1, ry1}, {rx2, ry2}, prefer_walkable)
+   for point in all(path) do
+    if not walkable(point[1],point[2]) then
+     mset(point[1],point[2], 113)
+    elseif mget(point[1],point[2]) == 81 then
+     mset(point[1],point[2], 113)
+    end
+   end
+ end
+
+ -- add(enemies, entity_create(12, 3, 51, 8, 'red slime', {}))
  -- add(enemies, entity_create(10, 5, 35, 9, 'orange mushroom'), {hp=3})
  -- add(enemies, entity_create(12, 5, 19, 5, 'bat', {flying= true}))
 
@@ -158,8 +217,21 @@ function mapgen(level)
  -- add(enemies, entity_create(6, 13, 35, 12, 'blue mushroom', {hp=3}))
  -- add(enemies, entity_create(13, 12, 35, 2, 'purple mushroom', {hp=3}))
  -- add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
- player.x = 6
- player.y = 4
+ player.x = rooms[1].x + 1
+ player.y = rooms[1].y + 1
+
+ local exx, exy = rooms[#rooms].x + 1, rooms[#rooms].y + 1
+ -- add(debug, "exit " .. exx .. ", " .. exy)
+
+ local path = astar({player.x, player.y}, {exx, exy}, prefer_walkable)
+ for point in all(path) do
+  if not walkable(point[1],point[2]) then
+   mset(point[1],point[2], 113)
+  elseif mget(point[1],point[2]) == 81 then
+   mset(point[1],point[2], 113)
+  end
+ end
+ mset(exx, exy, 97)
 
  -- banner(levels[level])
 end
@@ -171,6 +243,10 @@ end
 function endgame()
   _upd, _drw = update_endgame, draw_endgame
   fadeout(0.01)
+end
+
+function inmap(tx,ty)
+	return tx > 0 and ty > 0 and tx < size and ty < size
 end
 
 function update_endgame()
@@ -235,8 +311,8 @@ end
 function draw_game()
  cls(0)
  do_shake()
- map()
- -- map(3, 0, 0, 0, 16, 16)
+ -- map()
+ map(0, 0, 0, 0, size, size)
 
  player.col = magiccols[ stored[item] ]
  player.ani = player_ani( item )
@@ -285,7 +361,7 @@ function update_animate()
     elseif fget(mget(entity.x,entity.y), 5) then
      killer = 'the void'
      tip = 'watch your step'
-     entity.hp = 0
+     if (not entity.flying) entity.hp = 0
     end
    if (entity.hp <= 0) del(entities, entity)
   end
@@ -600,7 +676,7 @@ function water(hx, hy, target, caster)
  animate()
 end
 
--- TODO
+-- todo
 function fire(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.fire, {98, 102, 103})
@@ -610,7 +686,7 @@ function fire(hx, hy, target, caster)
  animate()
 end
 
--- TODO
+-- todo
 function dark(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.dark, {98, 102, 103})
@@ -620,7 +696,7 @@ function dark(hx, hy, target, caster)
  animate()
 end
 
--- TODO
+-- todo
 function light(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.light, {98, 102, 103})
@@ -630,7 +706,7 @@ function light(hx, hy, target, caster)
  animate()
 end
 
--- TODO
+-- todo
 function octarine(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.octarine, {98, 102, 103})
@@ -712,7 +788,8 @@ function do_shake()
  shakex*=shake
  shakey*=shake
 
- camera((player.x/2) * 8 + shakex, (player.y/2) * 8 + shakey)
+ local x, y = player.x*8+player.ox, player.y*8+player.oy
+ camera(x-64 + shakex, y-64 + shakey)
 
  shake*=0.8
  if(shake<=0.05)shake=0
@@ -843,6 +920,125 @@ function vcenter(s)
 	return (screen /2)-flr(5/2)
 end
 
+function adjacent(point)
+	local x, y = point[1], point[2]
+
+	local adj = {}
+	local v = {{x-1,y},{x,y-1},{x+1,y},{x,y+1}}
+	for i in all(v) do
+		if inmap(i[1],i[2]) then
+			add(adj,{i[1],i[2],mget(i[1],i[2])})
+		end
+	end
+	return adj
+end
+
+function astar(start, goal, cost)
+	printh("astar " .. start[1] .. "," .. start[2] .. " -> " .. goal[1] .. "," .. goal[2] ,"debug.txt")
+	local frontier = {}
+	insert(frontier, start, 0)
+	local came_from = {}
+	came_from[vec(start)] = nil
+	local cost_so_far = {}
+	cost_so_far[vec(start)] = 0
+
+	while (#frontier > 0 and #frontier < 1000) do
+		local popped = pop(frontier)
+		local current = popped[1]
+
+	 	if vec(current) == vec(goal) then
+	 		break
+	 	end
+
+	 	local neighbours = adjacent(current)
+	 	for next in all(neighbours) do
+
+	  	local nextindex = vec(next)
+
+		  local new_cost = cost_so_far[vec(current)] + cost(current, next)
+
+		  if (cost_so_far[nextindex] == nil) or (new_cost < cost_so_far[nextindex]) then
+				cost_so_far[nextindex] = new_cost
+				local priority = new_cost + heuristic(goal, next)
+				insert(frontier, next, priority)
+
+				came_from[nextindex] = current
+		  end
+
+	  end
+	end
+
+	current = came_from[vec(goal)]
+	path = {}
+	local cindex = vec(current)
+	local sindex = vec(start)
+
+	add(path, goal)
+
+	while cindex != sindex do
+	 add(path, current)
+	 current = came_from[cindex]
+	 cindex = vec(current)
+	end
+	add(path, start)
+	reverse(path)
+
+	return path
+end
+
+function reverse(t)
+	for i=1,(#t/2) do
+		local temp = t[i]
+		local oppindex = #t-(i-1)
+		t[i] = t[oppindex]
+		t[oppindex] = temp
+	end
+end
+
+function prefer_walkable(a, b)
+	if walkable(b[1],b[2]) then
+		return 1
+	elseif mget(b[1],b[2]) == 81 then
+		return 2
+	end
+	return rand(2,4)
+end
+
+function heuristic(a, b)
+	return distance(a[1], a[2], b[1], b[2])
+end
+
+function vec(point)
+	return flr(point[2])*256+flr(point[1])%256
+end
+
+function vec2xy(v)
+	local y = flr(v/256)
+	local x = v-flr(y*256)
+	return {x,y}
+end
+
+function floodfill(x,y,comp,action)
+	local queue = {vec(x,y)}
+	local seen = {}
+	while #queue > 0 do
+		local v = pop(queue)
+		local x,y = vec2xy(v)
+		if not (x <= 0 or x >= mapsize_x or y <= 0 or y >= mapsize_y) then
+			push(seen,v)
+			if action(x,y) == true then break end
+			for adj in all(adjacent(x,y)) do
+				local ax,ay = adj[1],adj[2]
+				local av = vec(ax,ay)
+				if not inlist(seen,av) and comp(ax,ay) then
+					push(queue,av)
+				end
+			end
+		end
+	end
+end
+
+
 __gfx__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000d000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000000000000000000000000000000ddd00000000000000000000000000000000000000000
@@ -912,8 +1108,8 @@ __gff__
 0080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000808000000000000000000000802040008080000000000000000000008040000000000000000800000000000080000102030405060708000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
-5151515151515151465151515151515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-5151515151445151465144444444515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5151515151515151515151515151515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+5151515151445151515144444444515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 5151515144404444464450604040515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 5151515151726040564071717740515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 5151515151717171747171717150515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
