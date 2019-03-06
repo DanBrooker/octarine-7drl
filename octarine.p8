@@ -5,7 +5,7 @@ __lua__
 -- draconisnz
 screen = 127
 size=32
-dev=true
+dev=false
 
 function entity_create(x, y, spr, col, name, args)
   local new_entity = {
@@ -124,6 +124,22 @@ function ui()
  end
 end
 
+function minimap_draw()
+  for x=0, size-1 do
+    for y=0, size-1 do
+			  if mget(x,y) then
+	      pset(x, y, mget(x,y) % 15 + 1)
+			  end
+    end
+  end
+
+	foreach(entities, function(entity)
+		pset(entity.x,entity.y,8)
+	end)
+
+ pset(player.x,player.y,8)
+end
+
 function startgame()
  fadeperc=1
  buttbuff=-1
@@ -156,31 +172,34 @@ function mapgen(level)
  entities={player}
  -- map gen should go here
 
- for i=1,size do
-  for j=1,size do
+ for i=0,size do
+  for j=0,size do
    mset(i,j, 81)
   end
  end
 
  rooms = {}
- area = 30
+ area = 26
  for i=1,8 do
   local width = rand(4, 10)
   local height = rand(4, area/width)
+  local x, y = rand(2, 28-width), rand(2, 28-height)
   room = {
-   x=rand(2, 28-width),
-   y=rand(2, 28-height),
+   x=x,
+   y=y,
+   mx=x+width,
+   my=y+height,
    w=width,
    h=height,
    i=i
   }
   add(rooms, room)
-  for i=room.x,room.x+room.w do
-   for j=room.y,room.y+room.h do
+  for i=room.x,room.mx do
+   for j=room.y,room.my do
     local tile = 113
-    if i == room.x or i == room.x+room.w then
+    if i == room.x or i == room.mx then
      tile = randa(walltiles)
-    elseif j == room.y or j == room.y+room.h then
+    elseif j == room.y or j == room.my then
      tile = 68
     elseif rand(1,10) > 8 then -- 20%
      tile = randa(magictiles)
@@ -206,17 +225,11 @@ function mapgen(level)
      mset(point[1],point[2], 113)
     end
    end
+
+   decorate(room)
+   if (i > 1) infest(room)
  end
 
- -- add(enemies, entity_create(12, 3, 51, 8, 'red slime', {}))
- -- add(enemies, entity_create(10, 5, 35, 9, 'orange mushroom'), {hp=3})
- -- add(enemies, entity_create(12, 5, 19, 5, 'bat', {flying= true}))
-
- -- add(enemies, entity_create(9, 10, 35, 12, 'blue mushroom', {}))
- --
- -- add(enemies, entity_create(6, 13, 35, 12, 'blue mushroom', {hp=3}))
- -- add(enemies, entity_create(13, 12, 35, 2, 'purple mushroom', {hp=3}))
- -- add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
  player.x = rooms[1].x + 1
  player.y = rooms[1].y + 1
 
@@ -233,7 +246,50 @@ function mapgen(level)
  end
  mset(exx, exy, 97)
 
- -- banner(levels[level])
+ banner(levels[level])
+end
+
+function plants(room)
+
+end
+
+function holes(room)
+
+end
+
+roomtypes = { plants, holes }
+function decorate(room)
+ local func = randa(roomtypes)
+end
+
+function random_in_room(room)
+ -- add(debug, "room " .. room.x .. "," .. room.y .. "," .. room.w .. "," .. room.h )
+ local n, x, y = 2, 0, 0
+ repeat
+  x, y = rand(room.x+1, room.w-2), rand(room.y+1, room.h-2)
+  n += 1
+  -- add(debug, "rnd " .. x .. "," .. y )
+  if (not walkable(x, y, "entities")) x = 0
+ until x > 0 or n == 0
+
+ return x, y
+end
+
+-- add(enemies, entity_create(12, 3, 51, 8, 'red slime', {}))
+-- add(enemies, entity_create(10, 5, 35, 9, 'orange mushroom'), {hp=3})
+-- add(enemies, entity_create(12, 5, 19, 5, 'bat', {flying= true}))
+
+-- add(enemies, entity_create(9, 10, 35, 12, 'blue mushroom', {}))
+--
+-- add(enemies, entity_create(6, 13, 35, 12, 'blue mushroom', {hp=3}))
+-- add(enemies, entity_create(13, 12, 35, 2, 'purple mushroom', {hp=3}))
+-- add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
+
+function infest(room)
+ for i=1,rand(1,4) do
+  local x, y = random_in_room(room)
+  if (x) entity_create(x, y, 51, 8, 'red slime', {})
+ end
 end
 
 function banner(text)
@@ -325,6 +381,7 @@ function draw_game()
   oprint8(f.txt,f.x,f.y,f.c,0)
  end
  ui()
+ if(dev) minimap_draw()
 end
 
 function player_ani( item )
@@ -352,7 +409,7 @@ function update_animate()
     entity.mov = nil
     local tile = mget(entity.x,entity.y)
     if fget(tile, 6) then
-     if tile == 97 then
+     if tile == 97 and entity == player then
       -- stairs
       mapgen(lvl + 1)
      -- else
@@ -369,7 +426,7 @@ function update_animate()
   if (_push_wait) wait(_push_wait)
   _upd=_push_upd or update_game
 
-  if (player.hp == 0) endgame()
+  if (player.hp <= 0) endgame()
   -- if checkend() then
   --  doai()
   -- end
@@ -1024,7 +1081,7 @@ function floodfill(x,y,comp,action)
 	while #queue > 0 do
 		local v = pop(queue)
 		local x,y = vec2xy(v)
-		if not (x <= 0 or x >= mapsize_x or y <= 0 or y >= mapsize_y) then
+		if not (x <= 0 or x >= size or y <= 0 or y >= size) then
 			push(seen,v)
 			if action(x,y) == true then break end
 			for adj in all(adjacent(x,y)) do
@@ -1080,14 +1137,14 @@ __gfx__
 000000000000100000010000303030307707777055000550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 666606600000000000000000303330307707777055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-663303600000000000000000000000000000000000000000c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-003033000000000000008000000000000000000000505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-633633000000000000808800000011100000000050505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-003030000005000000888800000011100000000050050550cc0c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-663366600000000000888000000000000555555055005550ccccccc0000000000000000000000000000000000000000000000000000000000000000000000000
-0003000000000000008888001110001155555550550555500ccc0c00000000000000000000000000000000000000000000000000000000000000000000000000
-66630660000000000888888011100011555555505550555000c00000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000555555505555555000000000000000000000000000000000000000000000000000000000000000000000000000000000
+663303605555555500000000000000000000000000000000c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+003033005555555500008000000000000000000000505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+633633005555555500808800000011100000000050505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+003030005555555500888800000011100000000050050550cc0c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+663366605555555500888000000000000555555055005550ccccccc0000000000000000000000000000000000000000000000000000000000000000000000000
+0003000055555555008888001110001155555550550555500ccc0c00000000000000000000000000000000000000000000000000000000000000000000000000
+66630660555555550888888011100011555555505550555000c00000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000555555550000000000000000555555505555555000000000000000000000000000000000000000000000000000000000000000000000000000000000
 63030660dd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 03330000dd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 60336600dd0dd0000000770000000000000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
