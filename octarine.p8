@@ -54,6 +54,7 @@ function _init()
  items = { "wand", "staff", "tome" }
  levels = {"i: dungeon dimension", "ii: ", "iii: ", "iv: ", "v: ", "vi: ", "vii: ", "" }
  debug={}
+ message = { ticks= 0 }
  palettes={earth={4,5,6}, nature={3,11}, water={1,12,13}, air={6,7}, fire={8,9,10}, dark={2,5}, light={6,7}, octarine={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}}
 
  startgame()
@@ -78,6 +79,7 @@ function _draw()
 end
 
 function ui()
+ camera(0,0)
  rectfill(0,screen-6,screen, screen, 7)
 
  -- health
@@ -140,6 +142,7 @@ function startgame()
 end
 
 function mapgen(level)
+ lvl = level
  enemies={}
  enviro={}
  particles={}
@@ -147,16 +150,18 @@ function mapgen(level)
  entities={player}
  -- map gen should go here
  add(enemies, entity_create(12, 3, 51, 8, 'red slime', {}))
- add(enemies, entity_create(10, 5, 35, 9, 'orange mushroom'), {hp=3})
- add(enemies, entity_create(12, 5, 19, 5, 'bat', {flying= true}))
+ -- add(enemies, entity_create(10, 5, 35, 9, 'orange mushroom'), {hp=3})
+ -- add(enemies, entity_create(12, 5, 19, 5, 'bat', {flying= true}))
 
- add(enemies, entity_create(9, 10, 35, 12, 'blue mushroom', {}))
+ -- add(enemies, entity_create(9, 10, 35, 12, 'blue mushroom', {}))
+ --
+ -- add(enemies, entity_create(6, 13, 35, 12, 'blue mushroom', {hp=3}))
+ -- add(enemies, entity_create(13, 12, 35, 2, 'purple mushroom', {hp=3}))
+ -- add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
+ player.x = 6
+ player.y = 4
 
- add(enemies, entity_create(6, 13, 35, 12, 'blue mushroom', {hp=3}))
- add(enemies, entity_create(13, 12, 35, 2, 'purple mushroom', {hp=3}))
- add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
-
- banner(levels[level])
+ -- banner(levels[level])
 end
 
 function banner(text)
@@ -231,6 +236,7 @@ function draw_game()
  cls(0)
  do_shake()
  map()
+ -- map(3, 0, 0, 0, 16, 16)
 
  player.col = magiccols[ stored[item] ]
  player.ani = player_ani( item )
@@ -268,8 +274,14 @@ function update_animate()
  if p_t==1 then
   for entity in all(entities) do
     entity.mov = nil
-    if fget(mget(entity.x,entity.y), 6) then
-     dmg(entity, 1, "environment")
+    local tile = mget(entity.x,entity.y)
+    if fget(tile, 6) then
+     if tile == 97 then
+      -- stairs
+      mapgen(lvl + 1)
+     -- else
+     --  dmg(entity, 1, "environment")
+     end
     elseif fget(mget(entity.x,entity.y), 5) then
      killer = 'the void'
      tip = 'watch your step'
@@ -578,7 +590,10 @@ function water(hx, hy, target, caster)
 
   if entity then
    explosion(entity.x * 8, entity.y * 8, 8, palettes.water, {98, 102, 103})
-   mobwalk(entity, dx, dy)
+   -- check is walkable
+   if walkable(entity.x + dx, entity.y + dy, "entities") then
+    mobwalk(entity, dx, dy)
+   end
   end
  end
 
@@ -697,8 +712,7 @@ function do_shake()
  shakex*=shake
  shakey*=shake
 
- local camx, camy = 0, 0
- camera(camx+shakex,camy+shakey)
+ camera((player.x/2) * 8 + shakex, (player.y/2) * 8 + shakey)
 
  shake*=0.8
  if(shake<=0.05)shake=0
