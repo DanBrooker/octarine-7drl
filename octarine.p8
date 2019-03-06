@@ -5,7 +5,7 @@ __lua__
 -- draconisnz
 screen = 127
 
-function entity_create(x, y, spr, col, name)
+function entity_create(x, y, spr, col, name, args)
   local new_entity = {
    name = name,
    x = x,
@@ -14,15 +14,18 @@ function entity_create(x, y, spr, col, name)
    oy = 0,
    hp = 2,
    flip = false,
-   col = col or 10,
+   col = col,
    ani = {spr, spr+1, spr, spr+2},
-   range = 1,
+   -- range = 1,
    flash = 0,
-   smart = false,
+   -- smart = false,
    stun = 0,
    roots = 0,
    atk = 1
   }
+  for k,v in pairs(args or {}) do
+   new_entity[k] = v
+  end
   add(entities, new_entity)
   return new_entity
 end
@@ -49,6 +52,7 @@ function _init()
  magics = { "earth", "nature", "water", "air", "fire", "dark", "light", "octarine" }
  magiccols = { 4, 3, 12, 3, 8, 5, 7, 13 }
  items = { "wand", "staff", "tome" }
+ levels = {"i: dungeon dimension", "ii: ", "iii: ", "iv: ", "v: ", "vi: ", "vii: ", "" }
  debug={}
  palettes={earth={4,5,6}, nature={3,11}, water={1,12,13}, air={6,7}, fire={8,9,10}, dark={2,5}, light={6,7}, octarine={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}}
 
@@ -84,36 +88,31 @@ function ui()
  end
  print(hearts, 1, 1, 8)
 
+ -- ammo
  local activemagic = magiccols[ stored[item] ]
  local chargesleft = charges[item]
  local col = activemagic
  if (chargesleft == 0) col = 15
  local chargec = ""
  for i=1,chargesleft do
-  -- chargec = chargec .. "\x85"
   print( "\x85", 1, 2+ (8*i), col)
  end
- -- print( chargec, 1, 9, col)
  spr(13, 4, 7)
 
- -- if message["ticks"] > 0 then
- --  local text = message["text"]
- --  rectfill(0,vcenter(text)-7,screenwidth, vcenter(text)-1, 7)
- --  print(text, hcenter(text), vcenter(text)-6, 0)
- --  message["ticks"] -= 1
- -- end
-
--- print(text, hcenter(text)+1, 3, 7)
--- print(text, hcenter(text), 4, 12)
-
- -- if dev then
-   -- print(player.x .. "," .. player.y, 2, screenheight-5, 0)
+ -- instructions
  if aiming then
    print("\x8b\x91\x94\x83 to zap", 2, screen-5, 0)
  elseif charges[item] == 0 then
    print("z to recharge", 2, screen-5, 0)
  else
    print("z to aim, x change item", 2, screen-5, 0)
+ end
+
+ if message.ticks > 0 then
+  local text = message.text
+  rectfill(0,vcenter(text)-7,screen, vcenter(text)-1, 7)
+  print(text, hcenter(text), vcenter(text)-6, 0)
+  message.ticks -= 1
  end
 end
 
@@ -124,12 +123,6 @@ function startgame()
  shakex=0
  shakey=0
 
- enemies={}
- entities={}
- enviro={}
- particles={}
- float={}
-
  killer = nil
  tip = nil
 
@@ -137,21 +130,42 @@ function startgame()
  stored = { 1, 2, 3 }
  item = 1
  aiming = false
- player=entity_create(6,4, 48, 8)
+ player=entity_create(6,4, 48, 8, {hp=2})
+ -- player.hp = 3
  p_t=0
 
- -- map gen should go here
- add(enemies, entity_create(12, 3, 51, 8, 'red slime'))
- add(enemies, entity_create(12, 4, 35, 9, 'orange mushroom'))
- add(enemies, entity_create(12, 5, 51, 10, 'yellow slime'))
-
+ mapgen(1)
  _upd=update_game
  _drw=draw_game
 end
 
+function mapgen(level)
+ enemies={}
+ enviro={}
+ particles={}
+ float={}
+ entities={player}
+ -- map gen should go here
+ add(enemies, entity_create(12, 3, 51, 8, 'red slime', {}))
+ add(enemies, entity_create(10, 5, 35, 9, 'orange mushroom'), {hp=3})
+ add(enemies, entity_create(12, 5, 19, 5, 'bat', {flying= true}))
+
+ add(enemies, entity_create(9, 10, 35, 12, 'blue mushroom', {}))
+
+ add(enemies, entity_create(6, 13, 35, 12, 'blue mushroom', {hp=3}))
+ add(enemies, entity_create(13, 12, 35, 2, 'purple mushroom', {hp=3}))
+ add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
+
+ banner(levels[level])
+end
+
+function banner(text)
+	message = { text=text, ticks=90 }
+end
+
 function endgame()
   _upd, _drw = update_endgame, draw_endgame
-  fadeout(0.02)
+  fadeout(0.01)
 end
 
 function update_endgame()
@@ -542,11 +556,13 @@ end
 function nature(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.nature, {98, 102, 103})
- -- todo; add tile effect to hx, hy
+
  if (target == nil) return
  dmg(target, 1)
+ if (target.flying) return
  target.roots = 3
- addfloat("tangled", target.x * 8 + 10, target.y * 8, 8)
+ if (target.hp > 0) addfloat("tangled", target.x * 8 + 10, target.y * 8, 8)
+
  animate()
 end
 
@@ -569,6 +585,7 @@ function water(hx, hy, target, caster)
  animate()
 end
 
+-- TODO
 function fire(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.fire, {98, 102, 103})
@@ -578,6 +595,7 @@ function fire(hx, hy, target, caster)
  animate()
 end
 
+-- TODO
 function dark(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.dark, {98, 102, 103})
@@ -587,6 +605,7 @@ function dark(hx, hy, target, caster)
  animate()
 end
 
+-- TODO
 function light(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.light, {98, 102, 103})
@@ -596,6 +615,7 @@ function light(hx, hy, target, caster)
  animate()
 end
 
+-- TODO
 function octarine(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.octarine, {98, 102, 103})
@@ -801,6 +821,14 @@ function shuffle(a)
 	return a
 end
 
+function hcenter(s)
+	return (screen / 2)-flr((#s*4)/2)
+end
+
+function vcenter(s)
+	return (screen /2)-flr(5/2)
+end
+
 __gfx__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000d000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000000000000000000000000000000ddd00000000000000000000000000000000000000000
@@ -810,12 +838,12 @@ __gfx__
 0070070000000000000000000000000000000000000000000000000000000000000000000000000000000000bb0b0bb000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bb0b00b000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b0b00b000000000000000000000000000000000
-07700000077000000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00770000007700700077007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-07777070077770700777707000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00770070007700700077007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00770070007700700077777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00777770007777700077007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+07700000077000000770000070000070000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00770000007700700077007077000770007070007000007000000000000000000000000000000000000000000000000000000000000000000000000000000000
+07777070077770700777707007777700077777007700077000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00770070007700700077007000777000770707700777770000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00770070007700700077777000070000700700700077700000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00777770007777700077007000000000000000000007000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 07770070077700700777007000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00707070007070000070700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 07700000077000000770000000777000000000000077700000000000000000000000000000000000000000000000000000000000000000000000000000000000
