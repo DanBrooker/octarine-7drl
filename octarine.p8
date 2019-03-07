@@ -54,14 +54,43 @@ function _init()
  magictiles = { 114, 115, 116, 117, 118, 119, 120, 121}
  walltiles = {64, 64, 64, 64, 64, 64, 80, 96}
  magics = { "earth", "nature", "water", "air", "fire", "dark", "light", "octarine" }
- magiccols = { 4, 3, 12, 3, 8, 5, 7, 13 }
+ magiccols = { 4, 3, 12, 6, 8, 5, 7, 13 }
  items = { "wand", "staff", "tome" }
  levels = {"i: dungeon dimension", "ii: ", "iii: ", "iv: ", "v: ", "vi: ", "vii: ", "" }
+ room_count = { 4, 4, 6, 6, 8, 8, 8, 1 }
+ monster_count = {1,2,2,3}
+ monster_levels = { {1,2}, {1,2,2,3}, {2,2,3,4}, {2,3,3,4,5}, {2,3,4,5,6}, {2,2,3,4}, {2,2,3,4}, {2,2,3,4} }
+ monsters = {
+  slime,
+  mushroom,
+  bat,
+  bat,
+  bat,
+  bat,
+  bat,
+  bat,
+  bat,
+  bat,
+  bat,
+ }
+
  debug={}
  message = { ticks= 0 }
  palettes={earth={4,5,6}, nature={3,11}, water={1,12,13}, air={6,7}, fire={8,9,10}, dark={2,5}, light={6,7}, octarine={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}}
 
  startgame()
+end
+
+function slime(x,y)
+ return entity_create(x, y, 51, 8, 'slime', {})
+end
+
+function mushroom(x,y)
+ return entity_create(x,y, 35, 9, 'mushroom', {hp=3, stupid=true})
+end
+
+function bat(x,y)
+ return entity_create(x,y, 19, 5, 'bat', {flying=true})
 end
 
 function _update60()
@@ -154,7 +183,7 @@ function startgame()
  stored = { 1, 2, 3 }
  item = 1
  aiming = false
- player=entity_create(6,4, 48, 8, {hp=2})
+ player=entity_create(6, 4, 48, 8, 'yourself', {hp=3})
  -- player.hp = 3
  p_t=0
 
@@ -180,7 +209,8 @@ function mapgen(level)
 
  rooms = {}
  area = 26
- for i=1,8 do
+ roomc = room_count[lvl]
+ for i=1,roomc do
   local width = rand(4, 10)
   local height = rand(4, area/width)
   local x, y = rand(2, 28-width), rand(2, 28-height)
@@ -286,9 +316,16 @@ end
 -- add(enemies, entity_create(10, 15, 35, 14, 'pink mushroom', {hp=3}))
 
 function infest(room)
- for i=1,rand(1,4) do
+ -- number of enemies from level list
+ local count = randa(monster_count)
+ -- add(debug, "infest " ..count)
+ for i=1,count  do
   local x, y = random_in_room(room)
-  if (x) entity_create(x, y, 51, 8, 'red slime', {})
+
+  if x then
+   local monster_id = randa(monster_levels[lvl])
+   monsters[monster_id](x,y)
+  end
  end
 end
 
@@ -416,9 +453,8 @@ function update_animate()
      --  dmg(entity, 1, "environment")
      end
     elseif fget(mget(entity.x,entity.y), 5) then
-     killer = 'the void'
      tip = 'watch your step'
-     if (not entity.flying) entity.hp = 0
+     if (not entity.flying) dmg(entity, 2, 'the void')
     end
    if (entity.hp <= 0) del(entities, entity)
   end
@@ -481,22 +517,22 @@ function moveplayer(dir)
 end
 
 function ai_action(entity)
- -- random move
+ if (distance(entity.x, entity.y, player.x, player.y) > 10) return
+
  local shuffled = shuffle({1,2,3,4})
  local moves = {}
  for i in all(shuffled) do
   local dir = dirs[i]
   local dx,dy = dir[1], dir[2]
   local x, y = entity.x + dx, entity.y + dy
-  local dist = distance(x,y, player.x, player.y)
+  local dist = distance(x, y, player.x, player.y)
   if dist == 0 then
    mobbump(entity, dx, dy)
    dmg(player, 1, entity.name)
    return
   elseif walkable(x, y, "entities") then
    if (entity.roots > 0) return
-   -- add(moves, { dx,dy, dist})
-   insert(moves, dir, dist)
+   if (mget(x,y) != 81 or entity.stupid) insert(moves, dir, dist)
   end
  end
 
@@ -614,7 +650,9 @@ function reload()
    stored[item] = m
    mset(player.x, player.y, 113)
   else
-   m = stored[item]
+   -- m = stored[item]
+   addfloat('no rune', player.x * 8, player.y * 8, '2')
+   return
   end
   -- add(debug, "reload " .. magics[m])
   addfloat(magics[m], player.x * 8, player.y * 8, magiccols[m])
@@ -753,23 +791,35 @@ function dark(hx, hy, target, caster)
  animate()
 end
 
--- todo
 function light(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
- explosion(x, y, 2, palettes.light, {98, 102, 103})
+ explosion(x, y, 2, palettes.light, {101})
  -- todo; add tile effect to hx, hy
  if (target == nil) return
- dmg(target, 1)
+ dmg(target, -1)
+ dmg(player, -1)
  animate()
 end
 
--- todo
 function octarine(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.octarine, {98, 102, 103})
- -- todo; add tile effect to hx, hy
- if (target == nil) return
- dmg(target, 1)
+
+ if target == nil then
+  if mget(hx, hy) == 81 then
+   dmg(caster, 2)
+   explosion(caster.x, caster.y, 6, palettes.octarine, {98, 102, 103})
+  else
+   local dx, dy = hx - caster.x, hy - caster.y
+   mobwalk(caster, dx, dy)
+  end
+ else
+  local dx, dy = target.x - caster.x, target.y - caster.y
+  local cx, cy = caster.x - target.x, caster.y - target.y
+  mobwalk(target, caster.x, caster.y)
+  mobwalk(caster, dx, dy)
+  dmg(target, 1)
+ end
  animate()
 end
 
@@ -785,7 +835,11 @@ effects = {
 }
 
 function dmg(entity, amount, cause)
- addfloat('-'..amount, entity.x * 8, entity.y * 8, 8)
+ if amount < 0 then
+  addfloat('+'.. -amount, entity.x * 8, entity.y * 8, 8)
+ else
+  addfloat('-'.. amount, entity.x * 8, entity.y * 8, 8)
+ end
  entity.hp -= amount
  entity.flash = 10
  if (entity == player) killer = cause
@@ -991,7 +1045,7 @@ function adjacent(point)
 end
 
 function astar(start, goal, cost)
-	printh("astar " .. start[1] .. "," .. start[2] .. " -> " .. goal[1] .. "," .. goal[2] ,"debug.txt")
+	-- printh("astar " .. start[1] .. "," .. start[2] .. " -> " .. goal[1] .. "," .. goal[2] ,"debug.txt")
 	local frontier = {}
 	insert(frontier, start, 0)
 	local came_from = {}
@@ -1066,6 +1120,7 @@ function heuristic(a, b)
 end
 
 function vec(point)
+ if(point == nil) return -1
 	return flr(point[2])*256+flr(point[1])%256
 end
 
@@ -1137,14 +1192,14 @@ __gfx__
 000000000000100000010000303030307707777055000550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 666606600000000000000000303330307707777055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-663303605555555500000000000000000000000000000000c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-003033005555555500008000000000000000000000505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-633633005555555500808800000011100000000050505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-003030005555555500888800000011100000000050050550cc0c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-663366605555555500888000000000000555555055005550ccccccc0000000000000000000000000000000000000000000000000000000000000000000000000
-0003000055555555008888001110001155555550550555500ccc0c00000000000000000000000000000000000000000000000000000000000000000000000000
-66630660555555550888888011100011555555505550555000c00000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000555555550000000000000000555555505555555000000000000000000000000000000000000000000000000000000000000000000000000000000000
+663303600000000000000000000000000000000000000000c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+003033000000000000008000000000000000000000505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+633633000000000000808800000011100000000050505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+003030000000500000888800000011100000000050050550cc0c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+663366600005000000888000000000000555555055005550ccccccc0000000000000000000000000000000000000000000000000000000000000000000000000
+0003000000000000008888001110001155555550550555500ccc0c00000000000000000000000000000000000000000000000000000000000000000000000000
+66630660000000000888888011100011555555505550555000c00000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000555555505555555000000000000000000000000000000000000000000000000000000000000000000000000000000000
 63030660dd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 03330000dd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 60336600dd0dd0000000770000000000000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
