@@ -43,6 +43,51 @@ function entity_draw(self)
  drawspr(frame, x, y,col,self.flp)
  if (self.stun !=0) draws(10, x, y, 0, false)
  if (self.roots !=0) draws(11, x, y, 0, false)
+ if (self.linked) draws(12, x, y, 0, false)
+end
+
+function slime(x,y)
+ return entity_create(x, y, 51, 11, 'slime', {})
+end
+
+function super_slime(x,y)
+ return entity_create(x, y, 51, 10, 'suberb slime', {})
+end
+
+function mushroom(x,y)
+ return entity_create(x,y, 35, 9, 'mushroom', {hp=3, stupid=true})
+end
+
+function super_mushroom(x,y)
+ return entity_create(x,y, 35, 9, 'mega-shroom', {hp=3, atk=2})
+end
+
+function bat(x,y)
+ return entity_create(x,y, 19, 5, 'bat', {flying=true})
+end
+
+function super_bat(x,y)
+ return entity_create(x,y, 19, 13, 'death bat', {flying=true, atk=2})
+end
+
+function sprite(x,y)
+ return entity_create(x,y, 3, 9, 'sprites', {flying=true, explodes=1, hp=1, atk=0})
+end
+
+function super_sprite(x,y)
+ return entity_create(x,y, 3, 8, 'thermo-nuclear sprites', {flying=true, explodes=2, hp=1, atk=0})
+end
+
+function flame(x,y)
+ return entity_create(x,y, 54, 9, 'flame', {trail="flame"})
+end
+
+function super_flame(x,y)
+ return entity_create(x,y, 54, 12, 'pureflame', {trail="pureflame"})
+end
+
+function boss(x,y)
+ return entity_create(x,y, 32, 14, 'boss', {boss=true, hp=8})
 end
 
 function _init()
@@ -51,27 +96,42 @@ function _init()
  dpal={0,1,1,2,1,13,6,4,4,9,3,13,1,13,14}
 
  dirs = {{-1,0}, {1,0}, {0,-1}, {0,1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}}
- magictiles = { 114, 115, 116, 117, 118, 119, 120, 121}
+ magictiles = { 114, 115, 116, 117, 118, 119, 120, 121, 122}
  walltiles = {64, 64, 64, 64, 64, 64, 80, 96}
+ walltiles2 = {64, 64, 64, 64, 64, 67, 80, 96, 113}
  magics = { "earth", "nature", "water", "air", "fire", "dark", "light", "octarine" }
  magiccols = { 4, 3, 12, 6, 8, 5, 7, 13 }
  items = { "wand", "staff", "tome" }
- levels = {"i: dungeon dimension", "ii: ", "iii: ", "iv: ", "v: ", "vi: ", "vii: ", "" }
- room_count = { 4, 4, 6, 6, 8, 8, 8, 1 }
+ levels = {
+  "dungeon dimension",
+  "ii",
+  "iii",
+  "iv",
+  "v",
+  "vi",
+  "vii",
+  "probably should not be here"
+ }
+ tips = {
+  "earth can stun",
+  "light can heal",
+  "dark can link souls",
+  "the void is best avoided",
+  "water splashes",
+  "nature binds",
+  "remember to use all your wands"
+ }
+ room_count = { 4, 4, 6, 6, 8, 8, 8, 2 }
  monster_count = {1,2,2,3}
- monster_levels = { {1,2}, {1,2,2,3}, {2,2,3,4}, {2,3,3,4,5}, {2,3,4,5,6}, {2,2,3,4}, {2,2,3,4}, {2,2,3,4} }
- monsters = {
-  slime,
-  mushroom,
-  bat,
-  bat,
-  bat,
-  bat,
-  bat,
-  bat,
-  bat,
-  bat,
-  bat,
+ monster_levels = {
+  {slime, slime, mushroom},
+  {slime, slime, super_slime, mushroom, mushroom},
+  {mushroom, mushroom, super_mushroom, bat, sprite, sprite},
+  {mushroom, super_mushroom, bat, super_bat, sprite, sprite, super_sprite},
+  {super_mushroom, bat, super_bat, sprite, super_sprite, flame},
+  {super_mushroom, super_bat, sprite, super_sprite, flame, super_flame},
+  {sprite, super_sprite, flame, super_flame},
+  {}
  }
 
  debug={}
@@ -79,18 +139,6 @@ function _init()
  palettes={earth={4,5,6}, nature={3,11}, water={1,12,13}, air={6,7}, fire={8,9,10}, dark={2,5}, light={6,7}, octarine={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}}
 
  startgame()
-end
-
-function slime(x,y)
- return entity_create(x, y, 51, 8, 'slime', {})
-end
-
-function mushroom(x,y)
- return entity_create(x,y, 35, 9, 'mushroom', {hp=3, stupid=true})
-end
-
-function bat(x,y)
- return entity_create(x,y, 19, 5, 'bat', {flying=true})
 end
 
 function _update60()
@@ -177,12 +225,12 @@ function startgame()
  shakey=0
 
  killer = nil
- tip = nil
 
  charges = { 7, 7, 7 }
- stored = { 1, 2, 3 }
+ stored = { 1,2,3 }
  item = 1
  aiming = false
+ linked = {}
  player=entity_create(6, 4, 48, 8, 'yourself', {hp=3})
  -- player.hp = 3
  p_t=0
@@ -228,9 +276,9 @@ function mapgen(level)
    for j=room.y,room.my do
     local tile = 113
     if i == room.x or i == room.mx then
-     tile = randa(walltiles)
+     tile = lvl <= 4 and randa(walltiles) or randa(walltiles2)
     elseif j == room.y or j == room.my then
-     tile = 68
+     tile = lvl <= 4 and 68 or randa({68,68, 113, 113, 67})
     elseif rand(1,10) > 8 then -- 20%
      tile = randa(magictiles)
     end
@@ -239,14 +287,17 @@ function mapgen(level)
   end
  end
 
- -- todo: connect rooms
+ player.x = rooms[1].x + 1
+ player.y = rooms[1].y + 1
+
+ local notend = lvl != 7
+
  for i=1,#rooms do
-  -- body...
    local room = rooms[i]
    local next = rooms[i % #rooms+1]
 
-   local rx1, ry1 = room.x + room.w/2, room.y + room.h/2
-   local rx2, ry2 = next.x + next.w/2, next.y + next.h/2
+   local rx1, ry1 = room.x + flr(room.w/2), room.y + flr(room.h/2)
+   local rx2, ry2 = next.x + flr(next.w/2), next.y + flr(next.h/2)
    local path = astar({rx1, ry1}, {rx2, ry2}, prefer_walkable)
    for point in all(path) do
     if not walkable(point[1],point[2]) then
@@ -260,36 +311,53 @@ function mapgen(level)
    if (i > 1) infest(room)
  end
 
- player.x = rooms[1].x + 1
- player.y = rooms[1].y + 1
+ if notend then
 
- local exx, exy = rooms[#rooms].x + 1, rooms[#rooms].y + 1
- -- add(debug, "exit " .. exx .. ", " .. exy)
+  local exx, exy = rooms[#rooms].x + 1, rooms[#rooms].y + 1
+  -- add(debug, "exit " .. exx .. ", " .. exy)
 
- local path = astar({player.x, player.y}, {exx, exy}, prefer_walkable)
- for point in all(path) do
-  if not walkable(point[1],point[2]) then
-   mset(point[1],point[2], 113)
-  elseif mget(point[1],point[2]) == 81 then
-   mset(point[1],point[2], 113)
+  local path = astar({player.x, player.y}, {exx, exy}, prefer_walkable)
+  for point in all(path) do
+   if not walkable(point[1],point[2]) then
+    mset(point[1],point[2], 113)
+   elseif mget(point[1],point[2]) == 81 then
+    mset(point[1],point[2], 113)
+   end
   end
+  mset(exx, exy, 97)
+ else
+
+  local x, y = random_in_room(rooms[#rooms])
+  local monster_func = randa(monster_levels[lvl])
+  local boss = boss(x,y)
+
  end
- mset(exx, exy, 97)
 
  banner(levels[level])
 end
 
-function plants(room)
+function nothing(room)
+end
 
+function plants(room)
+ for i=room.x,room.mx do
+  for j=room.y,room.my do
+   if (rand(0,4) > 3) mset(i,j, 67)
+  end
+ end
 end
 
 function holes(room)
-
+ for i=room.x,room.mx do
+  for j=room.y,room.my do
+   if (rand(0,4) > 3) mset(i,j, 81)
+  end
+ end
 end
 
-roomtypes = { plants, holes }
+roomtypes = { plants, holes, nothing, nothing }
 function decorate(room)
- local func = randa(roomtypes)
+ randa(roomtypes)(room)
 end
 
 function random_in_room(room)
@@ -321,10 +389,12 @@ function infest(room)
  -- add(debug, "infest " ..count)
  for i=1,count  do
   local x, y = random_in_room(room)
+  local dist = distance(x, y, player.x, player.y)
 
-  if x then
-   local monster_id = randa(monster_levels[lvl])
-   monsters[monster_id](x,y)
+  if x and dist > 8 then
+   local monster_func = randa(monster_levels[lvl])
+   local m = monster_func(x,y)
+   -- printh("spawn " .. m.name .. " " .. x .. "," .. y .. " dist=" .. dist, "debug.txt")
   end
  end
 end
@@ -334,6 +404,7 @@ function banner(text)
 end
 
 function endgame()
+ tip = randa(tips)
   _upd, _drw = update_endgame, draw_endgame
   fadeout(0.01)
 end
@@ -355,9 +426,13 @@ function draw_endgame()
  cls()
  -- palt(12,true)
  -- spr(gover_spr,gover_x,30,gover_w,2)
- if not win then
-  print("lost to ".. killer,28,43,2)
-  if (tip) print(tip, 34, 52, 6)
+ if win then
+  local msg = "dimension mastered!"
+  print(msg, hcenter(msg), vcenter(msg),2)
+ else
+  local msg = "lost to ".. killer
+  print(msg, hcenter(msg), vcenter(msg),2)
+  print(tip, hcenter(tip), vcenter(tip)+6, 6)
  end
  -- palt()
  color(5)
@@ -369,18 +444,7 @@ function draw_endgame()
  -- print("kills: "..st_kills)
  -- print("meals: "..st_meals)
 
- print("press ❎",46,90,5+abs(sin(time()/3)*2))
-end
-
-function update_game()
-  buffer()
-  local endturn = input(buttbuff)
-  buttbuff=-1
-
-  if endturn then
-    animate(update_ai, 1)
-    -- _upd = update_ai
-  end
+ print("press ❎",46,90,5)
 end
 
 function update_ai()
@@ -392,13 +456,63 @@ function update_ai()
      entity.stun -= 1
     else
      -- add(debug, "action " .. entity.name)
-     ai_action(entity)
+     if entity.boss then
+      boss_action(entity)
+     else
+      ai_action(entity)
+     end
     end
     if (entity.roots > 0) entity.roots -= 1
    end
   end
 
-  animate(update_game)
+  animate()
+end
+
+function env_at(x,y)
+  for m in all(enviro) do
+   if m.x==x and m.y==y then
+    return m
+   end
+  end
+end
+
+function update_end_turn()
+ for entity in all(entities) do
+   entity.mov = nil
+   local tile = mget(entity.x,entity.y)
+   if tile == 97 and entity == player then
+     mapgen(lvl + 1)
+   elseif fget(tile, 5) then
+    -- tip = 'watch your step'
+    if (not entity.flying) dmg(entity, 2, 'the void')
+   else
+    local env = env_at(entity.x,entity.y)
+    if env then
+     -- add(debug, entity.name .. "=" .. env.type)
+     if (entity.name != env.type) dmg(entity, 1, env.name)
+    end
+   end
+  if (entity.hp <= 0) then
+   on_death(entity)
+  end
+ end
+ for env in all(enviro) do
+  env.turns -= 1
+  if(env.turns <= 0) del(enviro, env)
+ end
+ _upd = update_ai
+end
+
+function update_game()
+  buffer()
+  local endturn = input(buttbuff)
+  buttbuff=-1
+
+  if endturn then
+    animate(update_end_turn)
+    -- _upd = update_ai
+  end
 end
 
 function draw_game()
@@ -431,6 +545,50 @@ function player_ani( item )
  end
 end
 
+function on_death(entity)
+ if (entity.explodes) then
+  explosion(entity.x * 8, entity.y * 8, 8, palettes.fire, {98, 102, 103})
+  for i=1,4 do
+   local dir = dirs[i]
+   local dx, dy = dir[1], dir[2]
+
+   for i=1,entity.explodes do
+    local ddx, ddy = dx * i, dy * i
+    local ent = entity_at(entity.x + ddx, entity.y + ddy)
+
+    if(ent) then
+     explosion(ent.x +ddx * 8, ent.y +ddy * 8, 4*i, palettes.fire, {98, 102, 103})
+     dmg(ent, 1+entity.explodes-i, "explosion")
+    end
+   end
+
+  end
+ end
+
+ local isLinked = false
+ for ent in all(linked) do
+  if ent==entity then
+   isLinked = true
+   break
+  end
+ end
+
+ if isLinked then
+  for ent in all(linked) do
+   explosion(ent.x * 8, ent.y * 8, 4, palettes.dark, {98, 102, 103})
+   ent.hp = 0
+  end
+  linked = {}
+ end
+
+ if entity.boss then
+  win=true
+  endgame()
+ end
+
+ del(entities, entity)
+end
+
 function update_animate()
  buffer()
  p_t=min(p_t+0.125,1)
@@ -442,31 +600,17 @@ function update_animate()
  end
 
  if p_t==1 then
-  for entity in all(entities) do
-    entity.mov = nil
-    local tile = mget(entity.x,entity.y)
-    if fget(tile, 6) then
-     if tile == 97 and entity == player then
-      -- stairs
-      mapgen(lvl + 1)
-     -- else
-     --  dmg(entity, 1, "environment")
-     end
-    elseif fget(mget(entity.x,entity.y), 5) then
-     tip = 'watch your step'
-     if (not entity.flying) dmg(entity, 2, 'the void')
-    end
-   if (entity.hp <= 0) del(entities, entity)
-  end
-
-  if (_push_wait) wait(_push_wait)
+  -- if (_push_wait) wait(_push_wait)
   _upd=_push_upd or update_game
 
+  for entity in all(entities) do
+   entity.mov = nil
+   if (entity.hp <= 0) then
+    on_death(entity)
+   end
+  end
   if (player.hp <= 0) endgame()
-  -- if checkend() then
-  --  doai()
-  -- end
-  -- calcdist(p_mob.x,p_mob.y)
+
  end
 end
 
@@ -483,9 +627,8 @@ function getbutt()
  return -1
 end
 
-function animate(push_upd, wait)
+function animate(push_upd)
  p_t=0
- _push_wait = wait or 0
  _push_upd = push_upd
  _upd=update_animate
 end
@@ -500,25 +643,14 @@ function moveplayer(dir)
   mobwalk(player,dx,dy)
   -- animate()
  else
+  -- sfx(63)
   mobbump(player,dx,dy)
   -- animate()
-
-  -- local mob=getmob(destx,desty)
-  -- if mob then
-  --  sfx(58)
-  --  hitmob(p_mob,mob)
-  -- else
-  --  if fget(tle,1) then
-  --   trig_bump(tle,destx,desty)
-  --  end
-  -- end
  end
  return true
 end
 
-function ai_action(entity)
- if (distance(entity.x, entity.y, player.x, player.y) > 10) return
-
+function move_towards(entity)
  local shuffled = shuffle({1,2,3,4})
  local moves = {}
  for i in all(shuffled) do
@@ -528,7 +660,7 @@ function ai_action(entity)
   local dist = distance(x, y, player.x, player.y)
   if dist == 0 then
    mobbump(entity, dx, dy)
-   dmg(player, 1, entity.name)
+   dmg(player, entity.atk, entity.name)
    return
   elseif walkable(x, y, "entities") then
    if (entity.roots > 0) return
@@ -539,9 +671,29 @@ function ai_action(entity)
  if #moves > 0 then
   local move = pop(moves)[1]
   -- add(debug, "move " .. move[1])
+  if (entity.trail) add_enviro(entity.x, entity.y, entity.trail, 2)
   mobwalk(entity, move[1], move[2])
  end
+end
 
+function boss_action(entity)
+ local dist = distance(entity.x, entity.y, player.x, player.y)
+ local xa = entity.x == player.x
+ local ya = entity.y == player.y
+ if (dist <= 8 and (xa or ya)) then
+  local dx, dy = normalise(player.x - entity.x, player.y - entity.y)
+  local hx, hy = aimtile(entity, dx, dy)
+
+  octarine(hx, hy, player, entity)
+ else
+  move_towards(entity)
+ end
+
+end
+
+function ai_action(entity)
+ if (distance(entity.x, entity.y, player.x, player.y) > 10) return
+ move_towards(entity)
 end
 
 function push(stack,item)
@@ -581,6 +733,9 @@ function walkable(x, y, mode)
  local floor = not fget(mget(x,y), 7)
  if mode == "entities" then
   if (floor) return entity_at(x,y) == nil
+ end
+ if mode == "player" then
+  if (floor) return player.x == x and player.y == y
  end
  return floor
 end
@@ -645,10 +800,14 @@ end
 function reload()
   local tile = mget(player.x, player.y)
   local m = fget(tile)
-  -- add(debug, "m " .. m .. " " .. magics[m])
+  -- add(debug, "m " .. m)
   if (magics[m]) then
    stored[item] = m
    mset(player.x, player.y, 113)
+  elseif m == 9 then
+   if (player.hp < 8) dmg(player, -1)
+   mset(player.x, player.y, 113)
+   return
   else
    -- m = stored[item]
    addfloat('no rune', player.x * 8, player.y * 8, '2')
@@ -705,7 +864,7 @@ function air(hx, hy, target, caster)
   mobbump(target, dx, dy)
   damage = 2
  end
- animate()
+ -- animate()
  dmg(target, damage)
 end
 
@@ -733,7 +892,7 @@ function earth(hx, hy, target, caster)
  mobbump(target, dx, dy)
 
  dmg(target, 1)
- animate()
+ -- animate()
 end
 
 function nature(hx, hy, target, caster)
@@ -746,7 +905,7 @@ function nature(hx, hy, target, caster)
  target.roots = 3
  if (target.hp > 0) addfloat("tangled", target.x * 8 + 10, target.y * 8, 8)
 
- animate()
+ -- animate()
 end
 
 function water(hx, hy, target, caster)
@@ -768,37 +927,69 @@ function water(hx, hy, target, caster)
   end
  end
 
- animate()
+ -- animate()
 end
 
--- todo
+enviro_animations = {
+ flame={54,55,56},
+ pureflame={54,55,56}
+}
+enviro_colours = {
+ flame=10,
+ pureflame=12
+}
+function add_enviro(x, y, type, turns)
+ local new_effect = {
+  x=x,
+  y=y,
+  ani=enviro_animations[type],
+  type=type,
+  col=enviro_colours[type],
+  turns=turns + 1 or 2
+ }
+ add(enviro, new_effect)
+end
+
 function fire(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
- explosion(x, y, 2, palettes.fire, {98, 102, 103})
  -- todo; add tile effect to hx, hy
- if (target == nil) return
- dmg(target, 1)
- animate()
+ if target == nil then
+  local dx, dy = hx - caster.x, hy - caster.y
+  local ox, oy = normalise(dx,dy)
+
+  if walkable(hx,hy) then
+   explosion(x, y, 2, palettes.fire, {98, 102, 103})
+   add_enviro(hx, hy, "flame", 2)
+  else
+   explosion(x - ox * 8, y - oy * 8, 2, palettes.fire, {98, 102, 103})
+   add_enviro(hx - ox, hy - oy, "flame", 2)
+  end
+ else
+  explosion(x, y, 2, palettes.fire, {98, 102, 103})
+  add_enviro(hx, hy, "flame", 1)
+  -- dmg(target, 1)
+ end
+ -- animate()
 end
 
--- todo
 function dark(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.dark, {98, 102, 103})
  -- todo; add tile effect to hx, hy
  if (target == nil) return
+ add(linked, target)
+ target.linked = true
  dmg(target, 1)
- animate()
+ -- animate()
 end
 
 function light(hx, hy, target, caster)
  local x, y = hx * 8, hy * 8
  explosion(x, y, 2, palettes.light, {101})
- -- todo; add tile effect to hx, hy
+
  if (target == nil) return
- dmg(target, -1)
- dmg(player, -1)
- animate()
+ if(target.hp < 8) dmg(target, -1)
+ if(caster.hp < 8) dmg(caster, -1)
 end
 
 function octarine(hx, hy, target, caster)
@@ -811,16 +1002,17 @@ function octarine(hx, hy, target, caster)
    explosion(caster.x, caster.y, 6, palettes.octarine, {98, 102, 103})
   else
    local dx, dy = hx - caster.x, hy - caster.y
-   mobwalk(caster, dx, dy)
+   local ox, oy = normalise(dx,dy)
+   mobwalk(caster, dx - ox, dy - oy)
   end
  else
   local dx, dy = target.x - caster.x, target.y - caster.y
   local cx, cy = caster.x - target.x, caster.y - target.y
-  mobwalk(target, caster.x, caster.y)
+  mobwalk(target, cx, cy)
   mobwalk(caster, dx, dy)
-  dmg(target, 1)
+  dmg(target, 1, 'magic')
  end
- animate()
+ -- animate()
 end
 
 effects = {
@@ -836,13 +1028,23 @@ effects = {
 
 function dmg(entity, amount, cause)
  if amount < 0 then
-  addfloat('+'.. -amount, entity.x * 8, entity.y * 8, 8)
+  addfloat('+'.. abs(amount), entity.x * 8, entity.y * 8, 11)
  else
   addfloat('-'.. amount, entity.x * 8, entity.y * 8, 8)
  end
  entity.hp -= amount
  entity.flash = 10
- if (entity == player) killer = cause
+ if (entity == player) killer = cause or "something"
+end
+
+function aimtile(entity, dx, dy)
+ local tx,ty,i = entity.x,entity.y,0
+ repeat
+  tx += dx
+  ty += dy
+  i += 1
+ until not walkable(tx,ty, "player") or i >= 8
+ return tx,ty
 end
 
 function throwtile(dx, dy)
@@ -935,7 +1137,9 @@ function update_part(p)
 end
 
 function draw_enviro(e)
-
+ -- if e.type == "fire" then
+  draws(getframe(e.ani), e.x * 8, e.y * 8, e.col)
+ -- end
 end
 
 function draw_part(p)
@@ -1046,7 +1250,11 @@ end
 
 function astar(start, goal, cost)
 	-- printh("astar " .. start[1] .. "," .. start[2] .. " -> " .. goal[1] .. "," .. goal[2] ,"debug.txt")
-	local frontier = {}
+ if vec(start)==vec(goal) then
+  return {start}
+ end
+
+ local frontier = {}
 	insert(frontier, start, 0)
 	local came_from = {}
 	came_from[vec(start)] = nil
@@ -1078,7 +1286,7 @@ function astar(start, goal, cost)
 
 	  end
 	end
-
+ -- printh("building path" ,"debug.txt")
 	current = came_from[vec(goal)]
 	path = {}
 	local cindex = vec(current)
@@ -1093,6 +1301,7 @@ function astar(start, goal, cost)
 	end
 	add(path, start)
 	reverse(path)
+ -- printh("path " .. #path ,"debug.txt")
 
 	return path
 end
@@ -1120,7 +1329,6 @@ function heuristic(a, b)
 end
 
 function vec(point)
- if(point == nil) return -1
 	return flr(point[2])*256+flr(point[1])%256
 end
 
@@ -1150,14 +1358,27 @@ function floodfill(x,y,comp,action)
 	end
 end
 
+function assert(a,text)
+	if not a then
+		error(text or "assertion failed")
+	end
+end
+
+function error(text)
+	cls()
+	print(text)
+	_update = function() end
+	_draw = function() end
+end
+
 
 __gfx__
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000d000000000000000000000000000000000000000000
-000000000000000000000000000000000000000000000000000000000000000000000000000000000000ddd00000000000000000000000000000000000000000
-0070070000000000000000000000000000000000000000000000000000000000000000000000000000000d000000000000000000000000000000000000000000
-000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000bb000000000000000000000000000000000000
-000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000bb0bb000000000000000000000000000000000
-0070070000000000000000000000000000000000000000000000000000000000000000000000000000000000bb0b0bb000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000d000000000000000050000000000000000000000000
+000000000000000000000000007000700070000000000070000000000000000000000000000000000000ddd00000000000000505000000000000000000000000
+0070070000000000000000000000000000000070007000000000000000000000000000000000000000000d000000000000000050000000000000000000000000
+000770000000000000000000000070000000700000000700000000000000000000000000000000000000000000bb000000000505000000000000000000000000
+000770000000000000000000007000000070000000000000000000000000000000000000000000000000000000bb0bb000000050000000000000000000000000
+0070070000000000000000000000700000000700007070000000000000000000000000000000000000000000bb0b0bb000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bb0b00b000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b0b00b000000000000000000000000000000000
 07700000077000000770000070000070000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1177,12 +1398,12 @@ __gfx__
 07770000077700000777000007777700077777000777770000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00707000007070000070700000707000007070000070700000000000000000000000000000000000000000000000000000000000000000000000000000000000
 07700000077000000770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00770000007700000077000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-07777000077770000777700000000000000000000007700000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00770000007700000077000000077000000000000007070000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00770070007707000077000000700700007777000070070000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00777700007777000077777007777770777777700077770000000000000000000000000000000000000000000000000000000000000000000000000000000000
-07770000077700000777000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00770000007700000077000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000
+07777000077770000777700000000000000000000007700000007000000700000007700000000000000000000000000000000000000000000000000000000000
+00770000007700000077000000077000000000000007070000077000000770000007700000000000000000000000000000000000000000000000000000000000
+00770070007707000077000000700700007777000070070000777700007777000077770000000000000000000000000000000000000000000000000000000000
+00777700007777000077777007777770777777700077770000777700007777000077770000000000000000000000000000000000000000000000000000000000
+07770000077700000777000000000000000000000000000000077000000770000007700000000000000000000000000000000000000000000000000000000000
 00707000007070000070700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 666606605555555000000000333000007777077000000000c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000303033307777077055550050c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1190,7 +1411,7 @@ __gfx__
 000000000000000000000000303000307707077055505500c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 660666600000000000000000303030307700000055500050c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000100000010000303030307707777055000550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
-666606600000000000000000303330307707777055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
+666066600000000000000000303330307707777055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000055555550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 663303600000000000000000000000000000000000000000c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
 003033000000000000008000000000000000000000505550c00c0cc0000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1208,16 +1429,16 @@ __gfx__
 00033000dd0dd0d00000000000000000000770000007000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 66603360dd0dd0d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-66660770110001104400044033000330cc000cc066000660880008805500055077000770dd000dd0000000000000000000000000000000000000000000000000
-66660770100000104000004030300030c00000c060060060800000805000005070000070d00000d0000000000000000000000000000000000000000000000000
-0000000000000000000440000003000000cc000000606000000800000005000000070000000d0000000000000000000000000000000000000000000000000000
-660666600000000004044000030003000c0c0c000000060000880000000000000070700000d0d000000000000000000000000000000000000000000000000000
-66066660000000000040000000303000000cc0000000600000888000005050000007000000dd0000000000000000000000000000000000000000000000000000
-00000000100000104000004030000030c00000c060060060800000805005005070000070d00000d0000000000000000000000000000000000000000000000000
-66660770110001104400044033000330cc000cc066000660880008805500055077000770dd000dd0000000000000000000000000000000000000000000000000
+66660770110001104400044033000330cc000cc066000660880008805500055077000770dd000dd0ee000ee00000000000000000000000000000000000000000
+66660770100000104000004030300030c00000c060060060800000805000005070000070d00000d0e00000e00000000000000000000000000000000000000000
+0000000000000000000440000003000000cc000000606000000800000005000000070000000d000000e0e0000000000000000000000000000000000000000000
+660666600000000004044000030003000c0c0c000000060000880000000000000070700000d0d0000eeeee000000000000000000000000000000000000000000
+66066660000000000040000000303000000cc0000000600000888000005050000007000000dd000000eee0000000000000000000000000000000000000000000
+00000000100000104000004030000030c00000c060060060800000805005005070000070d00000d0e00e00e00000000000000000000000000000000000000000
+66660770110001104400044033000330cc000cc066000660880008805500055077000770dd000dd0ee000ee00000000000000000000000000000000000000000
 66660770000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __gff__
-0080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000808000000000000000000000802040008080000000000000000000008040000000000000000800000000000080000102030405060708000000000000
+0080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000808000000000000000000000802040008080000000000000000000008000000000000000000800000000000080000102030405060708090000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 5151515151515151515151515151515151515151515151515151515151515151515151515151515100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
