@@ -784,7 +784,11 @@ function input(butt)
  elseif butt==4 then
   return toogleshoot()
  elseif butt==5 then
-  return switchitem()
+  if aiming then
+   return false -- maybe discharge if #enemies == 0
+  else
+   return switchitem()
+  end
  end
 end
 
@@ -792,7 +796,7 @@ function toogleshoot()
  if charges[item] == 0 then
   return reload()
  else
-  aiming=true
+  aiming = not aiming
   return false
  end
 end
